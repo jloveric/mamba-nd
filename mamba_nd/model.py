@@ -209,10 +209,28 @@ class MambaNDBlock(nn.Module):
     def __init__(self, config: MambaConfig) :
         self.config = config
 
+        # This should be the number of dimensions minus
+        # the batch and channels (everything between first and last)
+        ndimensions = config.ndimensions
+
+        mamba_blocks = []
+
+        # Assume the last dimension is 
+        for i in range(ndimensions) :
+            for direction in [1,-1]:
+                mb = MambaBlock()
+                mb.operate_on_dimension = i
+                mb.direction = direction
+                mamba_blocks.append(mb)
+
+
 
 class MambaBlock(nn.Module):
     def __init__(self, config: MambaConfig):
         super().__init__()
+
+        self.operate_on_dimension = None
+        self.direction = None
 
         self.config = config
 
