@@ -205,6 +205,9 @@ class ResidualBlock(nn.Module):
         output = output + x
         return output, cache
 
+class MambaNDBlock(nn.Module):
+    def __init__(self, config: MambaConfig) :
+        self.config = config
 
 
 class MambaBlock(nn.Module):
