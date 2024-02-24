@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Union
 
 import torch
-from torch import nn 
+from torch import nn
 import torch.nn.functional as F
 
 """
@@ -19,7 +19,8 @@ Please see docs/pscan.ipynb for a detailed explanation of what happens here.
 
 """
 
-# taken straight from https://github.com/johnma2006/mamba-minimal/blob/master/model.py
+
+# taken straight from https://github.com/johnma2006/mamba-minimal/blob/master/model.py
 class RMSNorm(nn.Module):
     def __init__(self, d_model: int, eps: float = 1e-5):
         super().__init__()
@@ -28,7 +29,9 @@ class RMSNorm(nn.Module):
         self.weight = nn.Parameter(torch.ones(d_model))
 
     def forward(self, x):
-        output = x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight
+        output = (
+            x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps) * self.weight
+        )
 
         return output
 
@@ -76,9 +79,7 @@ class PScan(torch.autograd.Function):
             Aa = Aa[:, :, :T].view(B, D, T // 2, 2, -1)
             Xa = Xa[:, :, :T].view(B, D, T // 2, 2, -1)
 
-            Xa[:, :, 1:, 0].add_(
-                Aa[:, :, 1:, 0].mul(Xa[:, :, :-1, 1])
-            )
+            Xa[:, :, 1:, 0].add_(Aa[:, :, 1:, 0].mul(Xa[:, :, :-1, 1]))
             Aa[:, :, 1:, 0].mul_(Aa[:, :, :-1, 1])
 
     @staticmethod
@@ -168,14 +169,11 @@ class MambaConfig:
     pscan: bool = True  # use parallel scan mode or sequential mode when training
 
     def __post_init__(self):
-        self.d_inner = (
-            self.expand_factor * self.dim
-        )  # E*D = ED in comments
+        self.d_inner = self.expand_factor * self.dim  # E*D = ED in comments
 
         if self.dt_rank == "auto":
             self.dt_rank = math.ceil(self.dim / 16)
-            
-            
+
 
 class ResidualBlock(nn.Module):
     def __init__(self, config: MambaConfig):
@@ -205,8 +203,9 @@ class ResidualBlock(nn.Module):
         output = output + x
         return output, cache
 
+
 class MambaNDBlock(nn.Module):
-    def __init__(self, config: MambaConfig) :
+    def __init__(self, config: MambaConfig):
         self.config = config
 
         # This should be the number of dimensions minus
@@ -215,14 +214,13 @@ class MambaNDBlock(nn.Module):
 
         mamba_blocks = []
 
-        # Assume the last dimension is 
-        for i in range(ndimensions) :
-            for direction in [1,-1]:
+        # Assume the last dimension is
+        for i in range(ndimensions):
+            for direction in [1, -1]:
                 mb = MambaBlock()
-                mb.operate_on_dimension = i
+                mb.operate_on_dimension = i + 1
                 mb.direction = direction
                 mamba_blocks.append(mb)
-
 
 
 class MambaBlock(nn.Module):
@@ -235,9 +233,7 @@ class MambaBlock(nn.Module):
         self.config = config
 
         # projects block input from D to 2*ED (two branches)
-        self.in_proj = nn.Linear(
-            config.dim, 2 * config.d_inner, bias=config.bias
-        )
+        self.in_proj = nn.Linear(config.dim, 2 * config.d_inner, bias=config.bias)
 
         self.conv1d = nn.Conv1d(
             in_channels=config.d_inner,
@@ -256,9 +252,7 @@ class MambaBlock(nn.Module):
         )
 
         # projects Δ from dt_rank to d_inner
-        self.dt_proj = nn.Linear(
-            config.dt_rank, config.d_inner, bias=True
-        )
+        self.dt_proj = nn.Linear(config.dt_rank, config.d_inner, bias=True)
 
         # dt initialization
         # dt weights
@@ -266,9 +260,7 @@ class MambaBlock(nn.Module):
         if config.dt_init == "constant":
             nn.init.constant_(self.dt_proj.weight, dt_init_std)
         elif config.dt_init == "random":
-            nn.init.uniform_(
-                self.dt_proj.weight, -dt_init_std, dt_init_std
-            )
+            nn.init.uniform_(self.dt_proj.weight, -dt_init_std, dt_init_std)
         else:
             raise NotImplementedError
 
@@ -287,23 +279,32 @@ class MambaBlock(nn.Module):
         # todo : explain why removed
 
         # S4D real initialization
-        A = torch.arange(
-            1, config.d_state + 1, dtype=torch.float32
-        ).repeat(config.d_inner, 1)
+        A = torch.arange(1, config.d_state + 1, dtype=torch.float32).repeat(
+            config.d_inner, 1
+        )
         self.A_log = nn.Parameter(
             torch.log(A)
         )  # why store A in log ? to keep A < 0 (cf -torch.exp(...)) ? for gradient stability ?
         self.D = nn.Parameter(torch.ones(config.d_inner))
 
         # projects block output from ED back to D
-        self.out_proj = nn.Linear(
-            config.d_inner, config.dim, bias=config.bias
-        )
+        self.out_proj = nn.Linear(config.d_inner, config.dim, bias=config.bias)
 
-    def forward(self, x):
+    def forward(self, xin):
         # x : (B, L, D)
 
         # y : (B, L, D)
+        indices = list(range(len(xin.shape)))
+        indices[1], indices[self.operate_on_dimension] = (
+            self.operate_on_dimension,
+            indices[1],
+        )
+
+        if self.direction == -1:
+            x = torch.flip(x, [1])
+
+        # Rotate the axis
+        x = torch.permute(xin, indices).reshape(xin.shape[0], -1, xin.shape[-1])
 
         _, L, _ = x.shape
 
@@ -325,6 +326,10 @@ class MambaBlock(nn.Module):
 
         output = y * z
         output = self.out_proj(output)  # (B, L, D)
+
+        # Rotate axis back
+        output = output.reshape(indices)
+        output = torch.permute(output, indices)
 
         return output
 
@@ -473,9 +478,7 @@ class MambaBlock(nn.Module):
         output = self.out_proj(output)  # (B, D)
 
         # prepare cache for next call
-        inputs = torch.cat(
-            [inputs[:, :, 1:], x_cache], dim=2
-        )  # (B, ED, d_conv-1)
+        inputs = torch.cat([inputs[:, :, 1:], x_cache], dim=2)  # (B, ED, d_conv-1)
         cache = (h, inputs)
 
         return output, cache
@@ -521,9 +524,7 @@ class MambaBlock(nn.Module):
 
         h = deltaA * h + BX  # (B, ED, N)
 
-        y = (h @ C.unsqueeze(-1)).squeeze(
-            2
-        )  # (B, ED, N) @ (B, N, 1) -> (B, ED, 1)
+        y = (h @ C.unsqueeze(-1)).squeeze(2)  # (B, ED, N) @ (B, N, 1) -> (B, ED, 1)
 
         y = y + D * x
 
