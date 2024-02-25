@@ -15,5 +15,6 @@ dt_init_floor: 1e-4
 
 bias: False
 conv_bias: True
+num_classes: 10
 
 pscan: True  # use parallel scan mode or sequential mode when training

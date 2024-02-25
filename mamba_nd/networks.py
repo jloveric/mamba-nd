@@ -217,6 +217,7 @@ class ResidualBlock(nn.Module):
 
 class MambaNDBlock(nn.Module):
     def __init__(self, config: MambaConfig):
+        super().__init__()
         self.config = config
 
         # This should be the number of dimensions minus
@@ -228,7 +229,7 @@ class MambaNDBlock(nn.Module):
         # Assume the last dimension is
         for i in range(ndimensions):
             for direction in [1, -1]:
-                mb = MambaBlock()
+                mb = MambaBlock(config=config)
                 mb.operate_on_dimension = i + 1
                 mb.direction = direction
                 mamba_blocks.append(mb)
@@ -317,10 +318,13 @@ class MambaBlock(nn.Module):
         )
 
         if self.direction == -1:
-            x = torch.flip(x, [1])
+            x = torch.flip(xin, [1])
 
         # Rotate the axis
-        x = torch.permute(xin, indices).reshape(xin.shape[0], -1, xin.shape[-1])
+        x = torch.permute(xin, indices)
+        interior_shape = x.shape
+        x=x.reshape(xin.shape[0], -1, xin.shape[-1])
+        
 
         _, L, _ = x.shape
 
@@ -344,7 +348,7 @@ class MambaBlock(nn.Module):
         output = self.out_proj(output)  # (B, L, D)
 
         # Rotate axis back
-        output = output.reshape(indices)
+        output = output.reshape(interior_shape)
         output = torch.permute(output, indices)
 
         return output
@@ -589,16 +593,16 @@ def select_network(cfg: DictConfig, device: str = None):
     config = MambaConfig(
         dim=cfg.dim,
         depth=cfg.depth,
-        dt_rank=cfg.rank,
+        dt_rank=cfg.dt_rank,
         d_state=cfg.d_state,  # N in paper/comments
         expand_factor=cfg.expand_factor,  # E in paper/comments
         d_conv=cfg.d_conv,
         ndimensions=cfg.ndimensions,  # Number of dimensions for input (2d is 2)
         dt_min=cfg.dt_min,
         dt_max=cfg.dt_max,
-        dt_init=cfg.init,  # "random" or "constant"
+        dt_init=cfg.dt_init,  # "random" or "constant"
         dt_scale=cfg.dt_scale,
-        dt_init_floor=cfg.dt_init_floor,
+        #dt_init_floor=cfg.dt_init_floor,
         bias=cfg.bias,
         conv_bias=cfg.conv_bias,
         pscan=cfg.pscan,  # use parallel scan mode or sequential mode when training
