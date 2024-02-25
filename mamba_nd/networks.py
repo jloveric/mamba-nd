@@ -3,7 +3,7 @@
 import math
 from dataclasses import dataclass
 from typing import Union
-
+from lightning.pytorch import LightningModule
 import torch
 import torch.optim as optim
 from torch import nn
@@ -11,6 +11,8 @@ import torch.nn.functional as F
 from torch import Tensor
 from lion_pytorch import Lion
 import logging
+from omegaconf import DictConfig
+from torchmetrics import Accuracy
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -581,6 +583,13 @@ class Mamba(nn.Module):
 
         return x, caches
 
+def select_network(cfg: DictConfig, device: str = None):
+    moidel = 
+
+    return model
+
+
+
 class ClassificationMixin:
     def eval_step(self, batch: Tensor, name: str):
         x, y, idx = batch
@@ -664,3 +673,16 @@ class PredictionNetMixin:
                 "monitor": "train_loss",
             }
             return [optimizer], [scheduler]
+
+class MambaNDClassificationNet(
+    ClassificationMixin, PredictionNetMixin, LightningModule
+):
+    def __init__(self, cfg: DictConfig):
+        super().__init__()
+        self.save_hyperparameters(cfg)
+        self.cfg = cfg
+
+        self.model = select_network(cfg)
+
+        self.loss = torch.nn.CrossEntropyLoss()
+        self.accuracy = Accuracy(top_k=1, task="multiclass", num_classes=cfg.num_classes)
