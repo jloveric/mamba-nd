@@ -78,16 +78,16 @@ class MambaDataModule(LightningDataModule):
     def setup(self, stage: Optional[str] = None):
 
         self._train_dataset = torchvision.datasets.MNIST(
-            root="../data", train=True, download=True
+            root=self._root_dir, train=True, download=True
         )
 
         # Ok, I need to redo both of these
         self._val_dataset = torchvision.datasets.MNIST(
-            root="../data", train=False, download=True
+            root=self._root_dir, train=False, download=True
         )
 
         self._test_dataset = torchvision.datasets.MNIST(
-            root="../data", train=False, download=True
+            root=self._root_dir, train=False, download=True
         )
 
         logger.info(f"Training dataset has {len(self.train_dataset)} samples.")
