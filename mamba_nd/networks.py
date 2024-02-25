@@ -584,7 +584,12 @@ class Mamba(nn.Module):
         return x, caches
 
 def select_network(cfg: DictConfig, device: str = None):
-    moidel = 
+    
+    config = MambaConfig(
+
+    )
+    
+    model = Mamba()
 
     return model
 

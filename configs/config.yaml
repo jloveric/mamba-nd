@@ -1,0 +1,19 @@
+dim: 3
+depth: 4
+dt_rank: "auto"
+d_state: 16
+expand_factor: 2
+d_conv: 4
+
+ndimensions: 2  # Number of dimensions for input (2d is 2)
+
+dt_min: 0.001
+dt_max: 0.1
+dt_init: "random"  # "random" or "constant"
+dt_scale: 1.0
+dt_init_floor: 1e-4
+
+bias: False
+conv_bias: True
+
+pscan: True  # use parallel scan mode or sequential mode when training
