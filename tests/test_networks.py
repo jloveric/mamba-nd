@@ -10,8 +10,6 @@ def test_mamba_network():
     datamodule = MambaDataModule(root_dir="./data")
     datamodule.setup()
 
-    train_dataloader = datamodule.train_dataloader()
-
     cfg = DictConfig(content={
         "dim":5,
         "depth":4,
