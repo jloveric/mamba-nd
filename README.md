@@ -1,4 +1,7 @@
 # mamba-nd
+
+NOT YET FULLY IMPLEMENTED
+
 The plan is to implement n-dimensional mamba in this repo. See if I do it or watch star trek instead.
 
 Basic model will be built on this implementation of [MambaByte](https://github.com/kyegomez/MambaByte/tree/main)

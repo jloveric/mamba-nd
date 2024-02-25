@@ -10,7 +10,7 @@ from typing import Optional
 from lightning.pytorch import LightningDataModule
 import torchvision
 import logging
-from typing import Tensor
+from torch import Tensor
 import random
 
 logger = logging.getLogger(__name__)
@@ -20,17 +20,13 @@ logging.basicConfig(level=logging.DEBUG)
 class MambaDataModule(LightningDataModule):
     def __init__(
         self,
-        characters_per_feature: int,
-        max_features: int,
         targets: int = 1,
         batch_size: int = 32,
         num_workers: int = 10,
         shuffle: bool = True,
         pin_memory: bool = False,
         pre_process_workers: int = 10,
-        max_size: int = -1,
         root_dir: str = ".",
-        add_channel_dimension: bool = False,
         as_index: bool = False,
     ):
         """
@@ -39,9 +35,6 @@ class MambaDataModule(LightningDataModule):
         used the entire text is used.
         """
         super().__init__()
-        self._characters_per_feature = characters_per_feature
-
-        self._max_features = max_features
 
         self._targets = targets
         self._batch_size = batch_size
@@ -49,36 +42,20 @@ class MambaDataModule(LightningDataModule):
         self._shuffle = shuffle
         self._pin_memory = pin_memory
         self._pre_process_workers = pre_process_workers
-        self._max_size = max_size
         self._root_dir = root_dir
-        self._add_channel_dimension = add_channel_dimension
         self._as_index = as_index
 
     def collate_fn(self, batch) -> tuple[Tensor, Tensor, list[int]]:
-        # TODO: this does not make sense to me
-        # The max size includes the output
 
-        max_size = max(self._max_size, batch[0][0].shape[0])
-        this_size = random.randint(1, max_size - 1)
-        final_features = torch.stack([sample[0][:this_size] for sample in batch])
+        images = torch.stack([torch.permute(image,[1,2,0]) for image, classification in batch])
+        classification = torch.tensor([classification for image, classification in batch])
 
-        # grab the first letter of the next token
-        final_targets = torch.stack([sample[0][this_size][0] for sample in batch])
-
-        final_indexes = [sample[1] for sample in batch]
-        if self._as_index is True:
-            return (
-                final_features,
-                final_targets,
-                final_indexes,
-            )
-
-        return self.normalize(final_features), final_targets, final_indexes
+        return images, classification
 
     def setup(self, stage: Optional[str] = None):
 
         self._train_dataset = torchvision.datasets.MNIST(
-            root=self._root_dir, train=True, download=True
+            root=self._root_dir, train=True, download=True,transform=transforms.ToTensor()
         )
 
         # Ok, I need to redo both of these
