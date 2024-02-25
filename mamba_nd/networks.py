@@ -232,10 +232,10 @@ class MambaNDBlock(nn.Module):
                 mb.operate_on_dimension = i + 1
                 mb.direction = direction
                 mamba_blocks.append(mb)
-        
+
         self.model = torch.nn.Sequential(*mamba_blocks)
 
-    def forward(self, x)->Tensor:
+    def forward(self, x) -> Tensor:
         return self.model(x)
 
 
@@ -583,16 +583,30 @@ class Mamba(nn.Module):
 
         return x, caches
 
-def select_network(cfg: DictConfig, device: str = None):
-    
-    config = MambaConfig(
 
+def select_network(cfg: DictConfig, device: str = None):
+
+    config = MambaConfig(
+        dim=cfg.dim,
+        depth=cfg.depth,
+        dt_rank=cfg.rank,
+        d_state=cfg.d_state,  # N in paper/comments
+        expand_factor=cfg.expand_factor,  # E in paper/comments
+        d_conv=cfg.d_conv,
+        ndimensions=cfg.ndimensions,  # Number of dimensions for input (2d is 2)
+        dt_min=cfg.dt_min,
+        dt_max=cfg.dt_max,
+        dt_init=cfg.init,  # "random" or "constant"
+        dt_scale=cfg.dt_scale,
+        dt_init_floor=cfg.dt_init_floor,
+        bias=cfg.bias,
+        conv_bias=cfg.conv_bias,
+        pscan=cfg.pscan,  # use parallel scan mode or sequential mode when training
     )
-    
-    model = Mamba()
+
+    model = Mamba(config=config)
 
     return model
-
 
 
 class ClassificationMixin:
@@ -608,10 +622,12 @@ class ClassificationMixin:
         self.log(f"{name}_acc", accuracy, prog_bar=True)
         return loss
 
+
 class MambaAutoregressiveMixin:
     """
     Not sure if I'll be using this in this repo, but putting it in as a reminder!
     """
+
     def eval_step(self, batch: Tensor, name: str):
         x, y, idx = batch
         y_hat = self(x)
@@ -640,7 +656,7 @@ class PredictionNetMixin:
         return self.eval_step(batch, "test")
 
     def configure_optimizers(self):
-            
+
         if self.cfg.optimizer.name == "lion":
             optimizer = Lion(
                 self.parameters(), lr=self.cfg.optimizer.lr, weight_decay=0.0
@@ -679,6 +695,7 @@ class PredictionNetMixin:
             }
             return [optimizer], [scheduler]
 
+
 class MambaNDClassificationNet(
     ClassificationMixin, PredictionNetMixin, LightningModule
 ):
@@ -690,4 +707,6 @@ class MambaNDClassificationNet(
         self.model = select_network(cfg)
 
         self.loss = torch.nn.CrossEntropyLoss()
-        self.accuracy = Accuracy(top_k=1, task="multiclass", num_classes=cfg.num_classes)
+        self.accuracy = Accuracy(
+            top_k=1, task="multiclass", num_classes=cfg.num_classes
+        )
